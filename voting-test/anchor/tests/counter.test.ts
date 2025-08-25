@@ -1,76 +1,48 @@
-import * as anchor from '@coral-xyz/anchor'
-import { Program } from '@coral-xyz/anchor'
-import { Keypair } from '@solana/web3.js'
-import { Counter } from '../target/types/counter'
+import { BankrunProvider, startAnchor } from "anchor-bankrun";
+import * as anchor from '@coral-xyz/anchor';
+import { Program } from '@coral-xyz/anchor';
+import { PublicKey } from '@solana/web3.js';
+import { Voting } from '../target/types/voting'; // generated types
+const IDL = require('../target/idl/voting.json');
 
-describe('counter', () => {
-  // Configure the client to use the local cluster.
-  const provider = anchor.AnchorProvider.env()
-  anchor.setProvider(provider)
-  const payer = provider.wallet as anchor.Wallet
+// Set the deployed program ID or local test validator keypair
+const votingAddress = new PublicKey("FqzkXZdwYjurnUKetJCAvaUw5WAqbwzU6gZEwydeEfqS");
 
-  const program = anchor.workspace.Counter as Program<Counter>
+// Increase Jest timeout globally for this test file
+jest.setTimeout(30000); // 30 seconds
 
-  const counterKeypair = Keypair.generate()
+describe('Voting', () => {
 
-  it('Initialize Counter', async () => {
-    await program.methods
-      .initialize()
-      .accounts({
-        counter: counterKeypair.publicKey,
-        payer: payer.publicKey,
-      })
-      .signers([counterKeypair])
-      .rpc()
+  it('Initialize poll', async () => {
+    // Start the Anchor context with Bankrun
+    const context = await startAnchor(
+      "", // workspace path, empty string for default
+      [
+        {
+          name: "voting",
+          programID: votingAddress, // actual program ID
+          idl: IDL                  // provide IDL explicitly
+        }
+      ],
+      []
+    );
 
-    const currentCount = await program.account.counter.fetch(counterKeypair.publicKey)
+    // Create a BankrunProvider from the context
+    const provider = new BankrunProvider(context);
 
-    expect(currentCount.count).toEqual(0)
-  })
+    // Initialize the program interface
+    const VotingProgram = new Program<Voting>(
+      IDL,
+      provider
+    );
 
-  it('Increment Counter', async () => {
-    await program.methods.increment().accounts({ counter: counterKeypair.publicKey }).rpc()
+    // Call the initializePoll method
+    await VotingProgram.methods.initializePoll(
+      new anchor.BN(1),                     // poll id
+      "Best Programming Language",          // poll question
+      new anchor.BN(0),                     // initial votes
+      new anchor.BN(1821246480)             // end timestamp
+    ).rpc();
 
-    const currentCount = await program.account.counter.fetch(counterKeypair.publicKey)
-
-    expect(currentCount.count).toEqual(1)
-  })
-
-  it('Increment Counter Again', async () => {
-    await program.methods.increment().accounts({ counter: counterKeypair.publicKey }).rpc()
-
-    const currentCount = await program.account.counter.fetch(counterKeypair.publicKey)
-
-    expect(currentCount.count).toEqual(2)
-  })
-
-  it('Decrement Counter', async () => {
-    await program.methods.decrement().accounts({ counter: counterKeypair.publicKey }).rpc()
-
-    const currentCount = await program.account.counter.fetch(counterKeypair.publicKey)
-
-    expect(currentCount.count).toEqual(1)
-  })
-
-  it('Set counter value', async () => {
-    await program.methods.set(42).accounts({ counter: counterKeypair.publicKey }).rpc()
-
-    const currentCount = await program.account.counter.fetch(counterKeypair.publicKey)
-
-    expect(currentCount.count).toEqual(42)
-  })
-
-  it('Set close the counter account', async () => {
-    await program.methods
-      .close()
-      .accounts({
-        payer: payer.publicKey,
-        counter: counterKeypair.publicKey,
-      })
-      .rpc()
-
-    // The account should no longer exist, returning null.
-    const userAccount = await program.account.counter.fetchNullable(counterKeypair.publicKey)
-    expect(userAccount).toBeNull()
-  })
-})
+  }); // end of it
+});
