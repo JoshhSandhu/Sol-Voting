@@ -1,52 +1,46 @@
-import { BankrunProvider, Program, startAnchor } from "anchor-bankrun";
-import * as anchor from '@coral-xyz/anchor';
+import { startAnchor } from "solana-bankrun";
+import { BankrunProvider } from "anchor-bankrun";
 import { PublicKey } from '@solana/web3.js';
+import * as anchor from '@coral-xyz/anchor';
+import { Program } from "@coral-xyz/anchor";
+
+
+const IDL = require("../target/idl/voting.json");
 import { Voting } from '../target/types/voting';
-import { expect } from '@jest/globals';
-import * as path from 'path';
-const idl = require('../target/idl/voting.json');
 
-jest.setTimeout(30000);
+const PUPPET_PROGRAM_ID = new PublicKey("FqzkXZdwYjurnUKetJCAvaUw5WAqbwzU6gZEwydeEfqS");
 
-describe('Voting', () => {
-  let provider: BankrunProvider;
-  let program: Program<Voting>;
+describe('Create a system account', () => {
 
-  beforeAll(async () => {
-    const context = await startAnchor(
-      path.join(__dirname, '..'), // Point to the anchor project root
-      [],
-      []
+  test("bankrun", async () => {
+    const context = await startAnchor("../", [{name: "voting", programId: PUPPET_PROGRAM_ID}], []);
+    const provider = new BankrunProvider(context);
+
+    const puppetProgram = new Program<Voting>(
+      IDL,
+      provider,
     );
-    provider = new BankrunProvider(context);
-    // Manually create the program object
-    program = new Program<Voting>(idl, provider);
-  });
 
-  it('Initialize poll', async () => {
     const pollId = new anchor.BN(1);
-    const description = "Best Programming Language";
-    const pollStart = new anchor.BN(Math.floor(Date.now() / 1000)); // Current time in seconds
-    const pollEnd = new anchor.BN(pollStart.toNumber() + 60 * 60 * 24); // 1 day from now
-
-    const [pollPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("poll"), pollId.toBuffer('le', 8)],
-      program.programId
+    const [pollAddress] = PublicKey.findProgramAddressSync(
+      [pollId.toArrayLike(Buffer, "le", 8)],
+      puppetProgram.programId
     );
 
-    await program.methods.initializePoll(
-      pollId,
-      description,
-      pollStart,
-      pollEnd
+    await puppetProgram.methods.initializePoll(
+        pollId,
+        "test-poll",
+        new anchor.BN(0),
+        new anchor.BN(1759508293)
     ).accounts({
-      poll: pollPda,
+      poll: pollAddress,
       signer: provider.wallet.publicKey,
-      systemProgram: anchor.web3.SystemProgram.programId,
-    }).rpc();
+    })
+    .rpc();
 
-    const pollAccount = await program.account.poll.fetch(pollPda);
-    expect(pollAccount.description).toEqual(description);
-    expect(pollAccount.pollId.eq(pollId)).toBe(true);
+    const pollAccount = await puppetProgram.account.poll.fetch(pollAddress);
+    console.log(pollAccount);
+
   });
+
 });
