@@ -1,48 +1,52 @@
-import { BankrunProvider, startAnchor } from "anchor-bankrun";
+import { BankrunProvider, Program, startAnchor } from "anchor-bankrun";
 import * as anchor from '@coral-xyz/anchor';
-import { Program } from '@coral-xyz/anchor';
 import { PublicKey } from '@solana/web3.js';
-import { Voting } from '../target/types/voting'; // generated types
-const IDL = require('../target/idl/voting.json');
+import { Voting } from '../target/types/voting';
+import { expect } from '@jest/globals';
+import * as path from 'path';
+const idl = require('../target/idl/voting.json');
 
-// Set the deployed program ID or local test validator keypair
-const votingAddress = new PublicKey("FqzkXZdwYjurnUKetJCAvaUw5WAqbwzU6gZEwydeEfqS");
-
-// Increase Jest timeout globally for this test file
-jest.setTimeout(30000); // 30 seconds
+jest.setTimeout(30000);
 
 describe('Voting', () => {
+  let provider: BankrunProvider;
+  let program: Program<Voting>;
 
-  it('Initialize poll', async () => {
-    // Start the Anchor context with Bankrun
+  beforeAll(async () => {
     const context = await startAnchor(
-      "", // workspace path, empty string for default
-      [
-        {
-          name: "voting",
-          programID: votingAddress, // actual program ID
-          idl: IDL                  // provide IDL explicitly
-        }
-      ],
+      path.join(__dirname, '..'), // Point to the anchor project root
+      [],
       []
     );
+    provider = new BankrunProvider(context);
+    // Manually create the program object
+    program = new Program<Voting>(idl, provider);
+  });
 
-    // Create a BankrunProvider from the context
-    const provider = new BankrunProvider(context);
+  it('Initialize poll', async () => {
+    const pollId = new anchor.BN(1);
+    const description = "Best Programming Language";
+    const pollStart = new anchor.BN(Math.floor(Date.now() / 1000)); // Current time in seconds
+    const pollEnd = new anchor.BN(pollStart.toNumber() + 60 * 60 * 24); // 1 day from now
 
-    // Initialize the program interface
-    const VotingProgram = new Program<Voting>(
-      IDL,
-      provider
+    const [pollPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("poll"), pollId.toBuffer('le', 8)],
+      program.programId
     );
 
-    // Call the initializePoll method
-    await VotingProgram.methods.initializePoll(
-      new anchor.BN(1),                     // poll id
-      "Best Programming Language",          // poll question
-      new anchor.BN(0),                     // initial votes
-      new anchor.BN(1821246480)             // end timestamp
-    ).rpc();
+    await program.methods.initializePoll(
+      pollId,
+      description,
+      pollStart,
+      pollEnd
+    ).accounts({
+      poll: pollPda,
+      signer: provider.wallet.publicKey,
+      systemProgram: anchor.web3.SystemProgram.programId,
+    }).rpc();
 
-  }); // end of it
+    const pollAccount = await program.account.poll.fetch(pollPda);
+    expect(pollAccount.description).toEqual(description);
+    expect(pollAccount.pollId.eq(pollId)).toBe(true);
+  });
 });

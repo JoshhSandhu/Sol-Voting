@@ -17,3 +17,6 @@ wallet = "/root/.config/solana/id.json"
 
 [scripts]
 test = "../node_modules/.bin/jest --preset ts-jest"
+
+[test]
+startup_wait = 60000
