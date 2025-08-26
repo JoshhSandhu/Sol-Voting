@@ -13,7 +13,7 @@ const PUPPET_PROGRAM_ID = new PublicKey("FqzkXZdwYjurnUKetJCAvaUw5WAqbwzU6gZEwyd
 describe('Create a system account', () => {
 
   test("bankrun", async () => {
-    const context = await startAnchor("../", [{name: "voting", programId: PUPPET_PROGRAM_ID}], []);
+    const context = await startAnchor(".", [{name: "voting", programId: PUPPET_PROGRAM_ID}], []);
     const provider = new BankrunProvider(context);
 
     const puppetProgram = new Program<Voting>(
