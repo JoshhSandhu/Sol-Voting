@@ -14,6 +14,59 @@ export type Voting = {
   },
   "instructions": [
     {
+      "name": "initializeCandidate",
+      "discriminator": [
+        210,
+        107,
+        118,
+        204,
+        255,
+        97,
+        112,
+        26
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pollAccount"
+        },
+        {
+          "name": "candidateAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "arg",
+                "path": "pollId"
+              },
+              {
+                "kind": "arg",
+                "path": "candidate"
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "pollId",
+          "type": "u64"
+        },
+        {
+          "name": "candidate",
+          "type": "string"
+        }
+      ]
+    },
+    {
       "name": "initializePoll",
       "discriminator": [
         193,
@@ -32,10 +85,19 @@ export type Voting = {
           "signer": true
         },
         {
-          "name": "poll",
+          "name": "pollAccount",
           "writable": true,
           "pda": {
             "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  108,
+                  108
+                ]
+              },
               {
                 "kind": "arg",
                 "path": "pollId"
@@ -54,59 +116,171 @@ export type Voting = {
           "type": "u64"
         },
         {
-          "name": "description",
+          "name": "startTime",
+          "type": "u64"
+        },
+        {
+          "name": "endTime",
+          "type": "u64"
+        },
+        {
+          "name": "name",
           "type": "string"
         },
         {
-          "name": "pollStart",
+          "name": "description",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "vote",
+      "discriminator": [
+        227,
+        110,
+        155,
+        23,
+        136,
+        126,
+        172,
+        25
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pollAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  108,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pollId"
+              }
+            ]
+          }
+        },
+        {
+          "name": "candidateAccount",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "arg",
+                "path": "pollId"
+              },
+              {
+                "kind": "arg",
+                "path": "candidate"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "pollId",
           "type": "u64"
         },
         {
-          "name": "pollEnd",
-          "type": "u64"
+          "name": "candidate",
+          "type": "string"
         }
       ]
     }
   ],
   "accounts": [
     {
-      "name": "poll",
+      "name": "candidateAccount",
       "discriminator": [
-        110,
-        234,
-        167,
-        188,
-        231,
-        136,
-        153,
-        111
+        69,
+        203,
+        73,
+        43,
+        203,
+        170,
+        96,
+        121
       ]
+    },
+    {
+      "name": "pollAccount",
+      "discriminator": [
+        109,
+        254,
+        117,
+        41,
+        232,
+        74,
+        172,
+        45
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "votingNotStarted",
+      "msg": "Voting has not started yet"
+    },
+    {
+      "code": 6001,
+      "name": "votingEnded",
+      "msg": "Voting has ended"
     }
   ],
   "types": [
     {
-      "name": "poll",
+      "name": "candidateAccount",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "pollId",
-            "type": "u64"
-          },
-          {
-            "name": "description",
+            "name": "candidateName",
             "type": "string"
           },
           {
-            "name": "pollStart",
+            "name": "candidateVotes",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "pollAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pollName",
+            "type": "string"
+          },
+          {
+            "name": "pollDescription",
+            "type": "string"
+          },
+          {
+            "name": "pollVotingStart",
             "type": "u64"
           },
           {
-            "name": "pollEnd",
+            "name": "pollVotingEnd",
             "type": "u64"
           },
           {
-            "name": "candidateAmount",
+            "name": "pollOptionIndex",
             "type": "u64"
           }
         ]
