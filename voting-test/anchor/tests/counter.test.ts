@@ -1,76 +1,52 @@
-import * as anchor from '@coral-xyz/anchor'
-import { Program } from '@coral-xyz/anchor'
-import { Keypair } from '@solana/web3.js'
-import { Counter } from '../target/types/counter'
+import { BankrunProvider, Program, startAnchor } from "anchor-bankrun";
+import * as anchor from '@coral-xyz/anchor';
+import { PublicKey } from '@solana/web3.js';
+import { Voting } from '../target/types/voting';
+import { expect } from '@jest/globals';
+import * as path from 'path';
+const idl = require('../target/idl/voting.json');
 
-describe('counter', () => {
-  // Configure the client to use the local cluster.
-  const provider = anchor.AnchorProvider.env()
-  anchor.setProvider(provider)
-  const payer = provider.wallet as anchor.Wallet
+jest.setTimeout(30000);
 
-  const program = anchor.workspace.Counter as Program<Counter>
+describe('Voting', () => {
+  let provider: BankrunProvider;
+  let program: Program<Voting>;
 
-  const counterKeypair = Keypair.generate()
+  beforeAll(async () => {
+    const context = await startAnchor(
+      path.join(__dirname, '..'), // Point to the anchor project root
+      [],
+      []
+    );
+    provider = new BankrunProvider(context);
+    // Manually create the program object
+    program = new Program<Voting>(idl, provider);
+  });
 
-  it('Initialize Counter', async () => {
-    await program.methods
-      .initialize()
-      .accounts({
-        counter: counterKeypair.publicKey,
-        payer: payer.publicKey,
-      })
-      .signers([counterKeypair])
-      .rpc()
+  it('Initialize poll', async () => {
+    const pollId = new anchor.BN(1);
+    const description = "Best Programming Language";
+    const pollStart = new anchor.BN(Math.floor(Date.now() / 1000)); // Current time in seconds
+    const pollEnd = new anchor.BN(pollStart.toNumber() + 60 * 60 * 24); // 1 day from now
 
-    const currentCount = await program.account.counter.fetch(counterKeypair.publicKey)
+    const [pollPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("poll"), pollId.toBuffer('le', 8)],
+      program.programId
+    );
 
-    expect(currentCount.count).toEqual(0)
-  })
+    await program.methods.initializePoll(
+      pollId,
+      description,
+      pollStart,
+      pollEnd
+    ).accounts({
+      poll: pollPda,
+      signer: provider.wallet.publicKey,
+      systemProgram: anchor.web3.SystemProgram.programId,
+    }).rpc();
 
-  it('Increment Counter', async () => {
-    await program.methods.increment().accounts({ counter: counterKeypair.publicKey }).rpc()
-
-    const currentCount = await program.account.counter.fetch(counterKeypair.publicKey)
-
-    expect(currentCount.count).toEqual(1)
-  })
-
-  it('Increment Counter Again', async () => {
-    await program.methods.increment().accounts({ counter: counterKeypair.publicKey }).rpc()
-
-    const currentCount = await program.account.counter.fetch(counterKeypair.publicKey)
-
-    expect(currentCount.count).toEqual(2)
-  })
-
-  it('Decrement Counter', async () => {
-    await program.methods.decrement().accounts({ counter: counterKeypair.publicKey }).rpc()
-
-    const currentCount = await program.account.counter.fetch(counterKeypair.publicKey)
-
-    expect(currentCount.count).toEqual(1)
-  })
-
-  it('Set counter value', async () => {
-    await program.methods.set(42).accounts({ counter: counterKeypair.publicKey }).rpc()
-
-    const currentCount = await program.account.counter.fetch(counterKeypair.publicKey)
-
-    expect(currentCount.count).toEqual(42)
-  })
-
-  it('Set close the counter account', async () => {
-    await program.methods
-      .close()
-      .accounts({
-        payer: payer.publicKey,
-        counter: counterKeypair.publicKey,
-      })
-      .rpc()
-
-    // The account should no longer exist, returning null.
-    const userAccount = await program.account.counter.fetchNullable(counterKeypair.publicKey)
-    expect(userAccount).toBeNull()
-  })
-})
+    const pollAccount = await program.account.poll.fetch(pollPda);
+    expect(pollAccount.description).toEqual(description);
+    expect(pollAccount.pollId.eq(pollId)).toBe(true);
+  });
+});
