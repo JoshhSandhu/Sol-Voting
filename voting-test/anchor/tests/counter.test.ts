@@ -1,46 +1,69 @@
-import { startAnchor } from "solana-bankrun";
-import { BankrunProvider } from "anchor-bankrun";
-import { PublicKey } from '@solana/web3.js';
 import * as anchor from '@coral-xyz/anchor';
-import { Program } from "@coral-xyz/anchor";
-
-
-const IDL = require("../target/idl/voting.json");
+import { Program } from '@coral-xyz/anchor';
 import { Voting } from '../target/types/voting';
+import { PublicKey } from '@solana/web3.js';
 
-const PUPPET_PROGRAM_ID = new PublicKey("FqzkXZdwYjurnUKetJCAvaUw5WAqbwzU6gZEwydeEfqS");
 
-describe('Create a system account', () => {
+describe('Voting', () => {
+  // Configure the client to use the local cluster.
+  anchor.setProvider(anchor.AnchorProvider.env());
 
-  test("bankrun", async () => {
-    const context = await startAnchor(".", [{name: "voting", programId: PUPPET_PROGRAM_ID}], []);
-    const provider = new BankrunProvider(context);
+  const program = anchor.workspace.Voting as Program<Voting>;
 
-    const puppetProgram = new Program<Voting>(
-      IDL,
-      provider,
-    );
+  it('initializePoll', async () => {
 
-    const pollId = new anchor.BN(1);
     const [pollAddress] = PublicKey.findProgramAddressSync(
-      [pollId.toArrayLike(Buffer, "le", 8)],
-      puppetProgram.programId
+      [Buffer.from("poll"), new anchor.BN(1).toArrayLike(Buffer, "le", 8)],
+      program.programId
     );
 
-    await puppetProgram.methods.initializePoll(
-        pollId,
-        "test-poll",
+    const tx = await program.methods.initializePoll(
+        new anchor.BN(1),
         new anchor.BN(0),
-        new anchor.BN(1759508293)
+        new anchor.BN(1759508293),
+        "test-poll",
+        "description",
+    )
+    .rpc();
+
+    console.log('Your transaction signature', tx);
+  });
+
+  it('initialize candidates', async () => {
+    const pollIdBuffer = new anchor.BN(1).toArrayLike(Buffer, "le", 8)
+
+    const [pollAddress] = PublicKey.findProgramAddressSync(
+      [Buffer.from("poll"), pollIdBuffer],
+      program.programId
+    );
+
+    const smoothTx = await program.methods.initializeCandidate(
+      new anchor.BN(1), 
+      "smooth",
     ).accounts({
-      poll: pollAddress,
-      signer: provider.wallet.publicKey,
+      pollAccount: pollAddress
     })
     .rpc();
 
-    const pollAccount = await puppetProgram.account.poll.fetch(pollAddress);
-    console.log(pollAccount);
+    const crunchyTx = await program.methods.initializeCandidate(
+      new anchor.BN(1), 
+      "crunchy",
+    ).accounts({
+      pollAccount: pollAddress
+    })
+    .rpc();
 
+    console.log('Your transaction signature', smoothTx);
   });
 
+  it('vote', async () => {
+
+    const tx = await program.methods.vote(
+      new anchor.BN(1),
+      "smooth",
+    )
+    .rpc();
+
+    console.log('Your transaction signature', tx);
+  });
 });
