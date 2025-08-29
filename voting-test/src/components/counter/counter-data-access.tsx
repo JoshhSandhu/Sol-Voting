@@ -1,6 +1,6 @@
 'use client'
 
-import { getCounterProgram as getVotingProgram, getCounterProgramId as getVotingProgramId } from '@/anchor'
+import { getCounterProgram as getVotingProgram, getCounterProgramId as getVotingProgramId } from '../../../anchor/src'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import { Cluster, PublicKey, SystemProgram } from '@solana/web3.js'
 import { useMutation, useQuery } from '@tanstack/react-query'
