@@ -1,115 +1,92 @@
 'use client'
 
-import { Keypair, PublicKey } from '@solana/web3.js'
-import { useMemo } from 'react'
+import { PublicKey } from '@solana/web3.js'
+import { useState } from 'react'
 import { ExplorerLink } from '../cluster/cluster-ui'
-import { useCounterProgram, useCounterProgramAccount } from './counter-data-access'
+import { useVotingProgram } from './counter-data-access'
 import { ellipsify } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
+import { Input } from '@/components/ui/input'
+import * as anchor from '@coral-xyz/anchor'
 
-export function CounterCreate() {
-  const { initialize } = useCounterProgram()
+// Component to create a new poll
+export function PollCreate() {
+  const { initializePoll } = useVotingProgram()
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+
+  const handleCreatePoll = () => {
+    // A simple way to generate a new poll ID. In a real app, you might use a counter or a more robust system.
+    const pollId = new anchor.BN(Math.floor(Math.random() * 10000))
+    if (!name.trim() || !description.trim()) {
+      alert('Please provide a name and description for the poll.')
+      return
+    }
+    initializePoll.mutateAsync({ pollId, name, description })
+  }
 
   return (
-    <Button onClick={() => initialize.mutateAsync(Keypair.generate())} disabled={initialize.isPending}>
-      Create {initialize.isPending && '...'}
-    </Button>
+    <Card>
+      <CardHeader>
+        <CardTitle>Create a New Poll</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Input placeholder="Poll Name" value={name} onChange={(e) => setName(e.target.value)} />
+        <Input
+          placeholder="Poll Description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+        <Button onClick={handleCreatePoll} disabled={initializePoll.isPending}>
+          Create Poll {initializePoll.isPending && '...'}
+        </Button>
+      </CardContent>
+    </Card>
   )
 }
 
-export function CounterList() {
-  const { accounts, getProgramAccount } = useCounterProgram()
+// Component to list existing polls
+export function PollList() {
+  const { pollAccounts } = useVotingProgram()
 
-  if (getProgramAccount.isLoading) {
+  if (pollAccounts.isLoading) {
     return <span className="loading loading-spinner loading-lg"></span>
   }
-  if (!getProgramAccount.data?.value) {
+  if (!pollAccounts.data?.length) {
     return (
-      <div className="alert alert-info flex justify-center">
-        <span>Program account not found. Make sure you have deployed the program and are on the correct cluster.</span>
+      <div className="text-center">
+        <h2 className={'text-2xl'}>No Polls Found</h2>
+        Create one above to get started.
       </div>
     )
   }
   return (
     <div className={'space-y-6'}>
-      {accounts.isLoading ? (
-        <span className="loading loading-spinner loading-lg"></span>
-      ) : accounts.data?.length ? (
-        <div className="grid md:grid-cols-2 gap-4">
-          {accounts.data?.map((account) => (
-            <CounterCard key={account.publicKey.toString()} account={account.publicKey} />
-          ))}
-        </div>
-      ) : (
-        <div className="text-center">
-          <h2 className={'text-2xl'}>No accounts</h2>
-          No accounts found. Create one above to get started.
-        </div>
-      )}
+      <div className="grid md:grid-cols-2 gap-4">
+        {pollAccounts.data?.map((account) => (
+          <PollCard key={account.publicKey.toString()} account={account.account} publicKey={account.publicKey} />
+        ))}
+      </div>
     </div>
   )
 }
 
-function CounterCard({ account }: { account: PublicKey }) {
-  const { accountQuery, incrementMutation, setMutation, decrementMutation, closeMutation } = useCounterProgramAccount({
-    account,
-  })
-
-  const count = useMemo(() => accountQuery.data?.count ?? 0, [accountQuery.data?.count])
-
-  return accountQuery.isLoading ? (
-    <span className="loading loading-spinner loading-lg"></span>
-  ) : (
+// Component to display a single poll
+function PollCard({ account, publicKey }: { account: any; publicKey: PublicKey }) {
+  // The account object from pollAccounts.data contains account data and the public key
+  return (
     <Card>
       <CardHeader>
-        <CardTitle>Counter: {count}</CardTitle>
-        <CardDescription>
-          Account: <ExplorerLink path={`account/${account}`} label={ellipsify(account.toString())} />
-        </CardDescription>
+        <CardTitle>{account.pollName}</CardTitle>
+        <CardDescription>Ends: {new Date(account.pollVotingEnd * 1000).toLocaleString()}</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="flex gap-4">
-          <Button
-            variant="outline"
-            onClick={() => incrementMutation.mutateAsync()}
-            disabled={incrementMutation.isPending}
-          >
-            Increment
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => {
-              const value = window.prompt('Set value to:', count.toString() ?? '0')
-              if (!value || parseInt(value) === count || isNaN(parseInt(value))) {
-                return
-              }
-              return setMutation.mutateAsync(parseInt(value))
-            }}
-            disabled={setMutation.isPending}
-          >
-            Set
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => decrementMutation.mutateAsync()}
-            disabled={decrementMutation.isPending}
-          >
-            Decrement
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={() => {
-              if (!window.confirm('Are you sure you want to close this account?')) {
-                return
-              }
-              return closeMutation.mutateAsync()
-            }}
-            disabled={closeMutation.isPending}
-          >
-            Close
-          </Button>
+        <p>{account.pollDescription}</p>
+        <div className="mt-4">
+          <ExplorerLink path={`account/${publicKey}`} label={ellipsify(publicKey.toString())} />
         </div>
+        {/* UI for candidates and voting would go here */}
       </CardContent>
     </Card>
   )
